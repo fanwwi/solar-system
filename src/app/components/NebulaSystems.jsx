@@ -5,12 +5,13 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
 const vertexShader = `
-  varying vec2 vUv;
+  varying vec3 vLocalPosition;
 
   void main() {
-    vUv = uv;
+    vLocalPosition = position;
 
-    gl_Position = projectionMatrix *
+    gl_Position =
+      projectionMatrix *
       modelViewMatrix *
       vec4(position, 1.0);
   }
@@ -21,161 +22,202 @@ const fragmentShader = `
   uniform vec3 uColor;
   uniform float uOpacity;
   uniform float uSeed;
+  uniform vec3 uCameraLocal;
 
-  varying vec2 vUv;
+  varying vec3 vLocalPosition;
 
-  float hash(vec2 p) {
-    return fract(
-      sin(dot(p, vec2(127.1, 311.7)) + uSeed) *
-      43758.5453123
-    );
+  float hash31(vec3 p) {
+    p = fract(p * 0.1031);
+    p += dot(p, p.yzx + 33.33);
+
+    return fract((p.x + p.y) * p.z);
   }
 
-  float noise(vec2 p) {
-    vec2 i = floor(p);
-    vec2 f = fract(p);
+  float noise3D(vec3 p) {
+    vec3 i = floor(p);
+    vec3 f = fract(p);
 
     f = f * f * (3.0 - 2.0 * f);
 
+    float n000 = hash31(i);
+    float n100 = hash31(i + vec3(1.0, 0.0, 0.0));
+    float n010 = hash31(i + vec3(0.0, 1.0, 0.0));
+    float n110 = hash31(i + vec3(1.0, 1.0, 0.0));
+
+    float n001 = hash31(i + vec3(0.0, 0.0, 1.0));
+    float n101 = hash31(i + vec3(1.0, 0.0, 1.0));
+    float n011 = hash31(i + vec3(0.0, 1.0, 1.0));
+    float n111 = hash31(i + vec3(1.0, 1.0, 1.0));
+
+    float x00 = mix(n000, n100, f.x);
+    float x10 = mix(n010, n110, f.x);
+    float x01 = mix(n001, n101, f.x);
+    float x11 = mix(n011, n111, f.x);
+
     return mix(
-      mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x),
-      mix(hash(i + vec2(0.0, 1.0)),
-          hash(i + vec2(1.0, 1.0)), f.x),
-      f.y
+      mix(x00, x10, f.y),
+      mix(x01, x11, f.y),
+      f.z
     );
   }
 
-  float fbm(vec2 p) {
+  float fbm(vec3 p) {
     float value = 0.0;
     float amplitude = 0.5;
 
-    for (int i = 0; i < 6; i++) {
-      value += noise(p) * amplitude;
-      p = p * 2.03 + vec2(13.7, 9.2);
+    for (int i = 0; i < 4; i++) {
+      value += noise3D(p) * amplitude;
+
+      p = p * 2.02 + vec3(17.1, 9.2, 13.7);
       amplitude *= 0.5;
     }
 
     return value;
   }
 
+  vec2 intersectBox(vec3 origin, vec3 direction) {
+    vec3 invDir = 1.0 / direction;
+
+    vec3 t0 = (-vec3(1.0) - origin) * invDir;
+    vec3 t1 = (vec3(1.0) - origin) * invDir;
+
+    vec3 tMin = min(t0, t1);
+    vec3 tMax = max(t0, t1);
+
+    float nearDist = max(
+      max(tMin.x, tMin.y),
+      tMin.z
+    );
+
+    float farDist = min(
+      min(tMax.x, tMax.y),
+      tMax.z
+    );
+
+    return vec2(nearDist, farDist);
+  }
+
   void main() {
-    vec2 p = vUv * 2.0 - 1.0;
+    vec3 rayOrigin = uCameraLocal;
 
-    float time = uTime * 0.009;
-
-    // Органическое искажение формы облака
-    float warp1 = fbm(
-      p * 2.0 + vec2(time, -time * 0.7)
+    vec3 rayDirection = normalize(
+      vLocalPosition - rayOrigin
     );
 
-    float warp2 = fbm(
-      p * 3.2 - vec2(time * 0.5, time)
+    vec2 hit = intersectBox(
+      rayOrigin,
+      rayDirection
     );
 
-    vec2 distorted = p;
+    float startDist = max(hit.x, 0.0);
+    float endDist = hit.y;
 
-    distorted += vec2(
-      warp1 - 0.5,
-      warp2 - 0.5
-    ) * 0.65;
+    if (endDist <= startDist) {
+      discard;
+    }
 
-    // Основная структура туманности
-    float largeCloud = fbm(
-      distorted * vec2(3.0, 2.0)
+    float stepSize = (endDist - startDist) / 28.0;
+
+    vec3 accumulatedColor = vec3(0.0);
+    float transmittance = 1.0;
+
+    float time = uTime * 0.012;
+
+    for (int i = 0; i < 28; i++) {
+      float distanceAlongRay =
+        startDist + (float(i) + 0.5) * stepSize;
+
+      vec3 p = rayOrigin +
+        rayDirection * distanceAlongRay;
+
+      // Soft organic volume boundary
+      float radius = length(
+        p * vec3(0.82, 1.0, 0.82)
+      );
+
+      float volumeMask = 1.0 - smoothstep(
+        0.38,
+        1.12,
+        radius
+      );
+
+      if (volumeMask > 0.005) {
+        // Slowly evolving gas turbulence
+        vec3 samplePosition =
+          p * 2.5 +
+          vec3(
+            time,
+            -time * 0.7,
+            time * 0.45
+          ) +
+          uSeed;
+
+        float warp = noise3D(
+          samplePosition * 0.7
+        );
+
+        samplePosition +=
+          vec3(warp - 0.5) * 0.9;
+
+        float cloud = fbm(
+          samplePosition * 2.8
+        );
+
+        float detail = noise3D(
+          samplePosition * 8.0
+        );
+
+        float density = smoothstep(
+          0.38,
+          0.73,
+          cloud
+        );
+
+        density *= volumeMask;
+
+        // Small dust and gas details
+        density +=
+          smoothstep(0.64, 0.86, detail) *
+          volumeMask *
+          0.12;
+
+        float sampleAlpha = clamp(
+          density * uOpacity * 0.085,
+          0.0,
+          0.12
+        );
+
+        // Color variations inside the cloud
+        float brightness =
+          0.55 + cloud * 1.25 + detail * 0.2;
+
+        vec3 sampleColor =
+          uColor * brightness;
+
+        accumulatedColor +=
+          sampleColor *
+          sampleAlpha *
+          transmittance;
+
+        transmittance *=
+          1.0 - sampleAlpha;
+      }
+
+      if (transmittance < 0.025) {
+        break;
+      }
+    }
+
+    float finalAlpha = 1.0 - transmittance;
+
+    if (finalAlpha < 0.003) {
+      discard;
+    }
+
+    gl_FragColor = vec4(
+      accumulatedColor,
+      finalAlpha
     );
-
-    float mediumCloud = fbm(
-      distorted * vec2(7.0, 5.0) +
-      vec2(time * 0.4, -time)
-    );
-
-    float fineCloud = fbm(
-      distorted * 15.0 + uSeed
-    );
-
-    float density =
-      largeCloud * 0.52 +
-      mediumCloud * 0.33 +
-      fineCloud * 0.15;
-
-    // Неровная граница облака
-    float shapeNoise = fbm(
-      distorted * 2.4 + vec2(uSeed, 0.0)
-    );
-
-    float radius = length(
-      distorted * vec2(0.78, 1.05)
-    );
-
-    float irregularRadius =
-      radius + (shapeNoise - 0.5) * 0.95;
-
-    // Очень мягкое растворение краёв
-    float edgeMask = 1.0 - smoothstep(
-      0.30,
-      1.55,
-      irregularRadius
-    );
-
-    // Облачные слои
-    float mainCloud = smoothstep(
-      0.36,
-      0.68,
-      density
-    );
-
-    float softCloud = smoothstep(
-      0.24,
-      0.65,
-      mediumCloud
-    );
-
-    float brightCloud = smoothstep(
-      0.48,
-      0.78,
-      fineCloud
-    );
-
-    // Мягкие волокна и пылевые структуры
-    float filaments = pow(
-      max(0.0, mediumCloud - 0.35),
-      1.5
-    );
-
-    float cloudDensity =
-      mainCloud * 0.55 +
-      softCloud * 0.25 +
-      brightCloud * 0.10 +
-      filaments * 0.35;
-
-    // Дополнительное исчезновение у краёв самой плоскости
-    float planeEdge = min(
-      min(vUv.x, 1.0 - vUv.x),
-      min(vUv.y, 1.0 - vUv.y)
-    );
-
-    float planeMask = smoothstep(
-      0.0,
-      0.18,
-      planeEdge
-    );
-
-    float alpha =
-      cloudDensity *
-      edgeMask *
-      planeMask *
-      uOpacity *
-      0.65;
-
-    // Неоднородная яркость
-    float brightness =
-      0.45 +
-      largeCloud * 0.75 +
-      fineCloud * 0.35;
-
-    vec3 color = uColor * brightness;
-
-    gl_FragColor = vec4(color, alpha);
   }
 `;
 
@@ -189,36 +231,27 @@ function seededRandom(seed) {
 }
 
 function createNebulaData() {
-  const random = seededRandom(72139);
+  const random = seededRandom(91827);
 
   const colors = [
-    "#6244ff",
-    "#345eff",
-    "#9b43ff",
-    "#ff4b9b",
-    "#20a6e8",
-    "#28d5cf",
-    "#e27aaf",
-    "#7c6aff",
-    "#d18bff",
-    "#426bce",
-    "#f18cba",
-    "#276eae",
-    "#8d54d9",
-    "#35a5a0",
-    "#bd70e9",
-    "#e4a06e",
-    "#4e8dff",
-    "#a54bca",
-    "#7250c9",
-    "#3c9acb",
-    "#d66b9e",
-    "#8e73ff",
+    "#7355ff",
+    "#386cff",
+    "#a14cff",
+    "#e75caa",
+    "#35a9e8",
+    "#38d1cf",
+    "#bd79ef",
+    "#ff83b9",
+    "#5b91e8",
+    "#8c61d9",
+    "#43a8b9",
+    "#d88ab8",
   ];
 
-  return Array.from({ length: 30 }, (_, i) => {
+  return Array.from({ length: 12 }, (_, i) => {
     const y = random() * 2 - 1;
     const angle = random() * Math.PI * 2;
+
     const horizontal = Math.sqrt(1 - y * y);
 
     const direction = [
@@ -227,12 +260,12 @@ function createNebulaData() {
       horizontal * Math.sin(angle),
     ];
 
-    const distance = 260 + random() * 850;
+    const distance = 300 + random() * 650;
 
     return {
       id: i,
 
-      position: direction.map((v) => v * distance),
+      position: direction.map((value) => value * distance),
 
       rotation: [
         random() * Math.PI,
@@ -240,12 +273,11 @@ function createNebulaData() {
         random() * Math.PI,
       ],
 
-      width: 260 + random() * 340,
-      height: 180 + random() * 260,
+      scale: [110 + random() * 100, 85 + random() * 90, 100 + random() * 110],
 
-      color: colors[i % colors.length],
+      color: colors[i],
 
-      opacity: 0.18 + random() * 0.18,
+      opacity: 0.8 + random() * 0.5,
 
       seed: random() * 100,
     };
@@ -254,46 +286,73 @@ function createNebulaData() {
 
 const NEBULAS = createNebulaData();
 
-function NebulaCloud({
-  position,
-  rotation,
-  width,
-  height,
-  color,
-  opacity,
-  seed,
-}) {
-  const materialRef = useRef();
+function NebulaVolume({ position, rotation, scale, color, opacity, seed }) {
+  const meshRef = useRef();
+
+  const worldCamera = useMemo(() => new THREE.Vector3(), []);
+
+  const localCamera = useMemo(() => new THREE.Vector3(), []);
+
+  const inverseMatrix = useMemo(() => new THREE.Matrix4(), []);
 
   const uniforms = useMemo(
     () => ({
       uTime: { value: 0 },
-      uColor: { value: new THREE.Color(color) },
-      uOpacity: { value: opacity },
-      uSeed: { value: seed },
+
+      uColor: {
+        value: new THREE.Color(color),
+      },
+
+      uOpacity: {
+        value: opacity,
+      },
+
+      uSeed: {
+        value: seed,
+      },
+
+      uCameraLocal: {
+        value: new THREE.Vector3(),
+      },
     }),
     [color, opacity, seed],
   );
 
-  useFrame(({ clock }) => {
-    if (materialRef.current) {
-      materialRef.current.uniforms.uTime.value = clock.elapsedTime;
-    }
+  useFrame(({ clock, camera }) => {
+    if (!meshRef.current) return;
+
+    meshRef.current.updateMatrixWorld();
+
+    camera.getWorldPosition(worldCamera);
+
+    inverseMatrix.copy(meshRef.current.matrixWorld).invert();
+
+    localCamera.copy(worldCamera).applyMatrix4(inverseMatrix);
+
+    uniforms.uCameraLocal.value.copy(localCamera);
+
+    uniforms.uTime.value = clock.elapsedTime;
   });
 
   return (
-    <mesh position={position} rotation={rotation} frustumCulled={false}>
-      <planeGeometry args={[width, height, 1, 1]} />
+    <mesh
+      ref={meshRef}
+      position={position}
+      rotation={rotation}
+      scale={scale}
+      frustumCulled={false}
+      renderOrder={-2}
+    >
+      <boxGeometry args={[2, 2, 2]} />
 
       <shaderMaterial
-        ref={materialRef}
         uniforms={uniforms}
         vertexShader={vertexShader}
         fragmentShader={fragmentShader}
         transparent
         depthWrite={false}
         depthTest={false}
-        side={THREE.DoubleSide}
+        side={THREE.BackSide}
         blending={THREE.AdditiveBlending}
         toneMapped={false}
       />
@@ -305,7 +364,7 @@ export default function NebulaSystems() {
   return (
     <group>
       {NEBULAS.map((nebula) => (
-        <NebulaCloud key={nebula.id} {...nebula} />
+        <NebulaVolume key={nebula.id} {...nebula} />
       ))}
     </group>
   );

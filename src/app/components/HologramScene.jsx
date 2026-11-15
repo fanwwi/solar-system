@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Suspense } from "react";
@@ -8,8 +9,9 @@ import SolarSystem from "./solar-system/SolarSystem";
 import CameraRig from "./solar-system/CameraRig";
 
 import SpaceBackground from "./SpaceBackground";
-import GalaxyDistribution from "./GalaxyDistribution";
+import StarField from "./StarField";
 import NebulaSystems from "./NebulaSystems";
+import GalaxyDistribution from "./GalaxyDistribution";
 
 export default function HologramScene({
   selectedPlanet,
@@ -35,7 +37,10 @@ export default function HologramScene({
         {/* Deep space background */}
         <SpaceBackground />
 
-        {/* Nebula clouds distributed around the scene */}
+        {/* Star field and constellations */}
+        <StarField />
+
+        {/* Volumetric nebula clouds */}
         <NebulaSystems />
 
         {/* Galaxies distributed in all directions */}
@@ -45,7 +50,10 @@ export default function HologramScene({
         <ambientLight intensity={0.25} />
 
         {/* Solar system */}
-        <SolarSystem selectedPlanet={selectedPlanet} onSelect={onSelect} />
+        <SolarSystem
+          selectedPlanet={selectedPlanet}
+          onSelect={onSelect}
+        />
 
         {/* Camera controls */}
         <OrbitControls
@@ -65,7 +73,10 @@ export default function HologramScene({
         />
 
         {/* Planet focus camera */}
-        <CameraRig selectedPlanet={selectedPlanet} controlsRef={controlsRef} />
+        <CameraRig
+          selectedPlanet={selectedPlanet}
+          controlsRef={controlsRef}
+        />
       </Suspense>
     </Canvas>
   );
