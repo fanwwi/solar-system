@@ -8,6 +8,7 @@ import { planets } from "@/app/data/planets";
 import Sun from "./Sun";
 import Planet from "./Planet";
 import PlanetOrbit from "./PlanetOrbit";
+import AsteroidBelt from "./AsteroidBelt";
 
 function OrbitingPlanet({ planet, selectedPlanet, onSelect }) {
   const groupRef = useRef(null);
@@ -16,7 +17,6 @@ function OrbitingPlanet({ planet, selectedPlanet, onSelect }) {
     if (!groupRef.current) return;
 
     const time = state.clock.elapsedTime;
-
     const angle = time * planet.orbitSpeed * 0.12;
 
     groupRef.current.position.x = Math.cos(angle) * planet.orbitRadius;
@@ -36,20 +36,36 @@ function OrbitingPlanet({ planet, selectedPlanet, onSelect }) {
 }
 
 export default function SolarSystem({ selectedPlanet, onSelect }) {
+  const mars = planets.find((planet) => planet.id === "mars");
+
+  const jupiter = planets.find((planet) => planet.id === "jupiter");
+
   return (
     <group>
+      {/* Sun */}
       <Sun />
 
+      {/* Planet orbits */}
       {planets.map((planet) => (
-        <group key={planet.id}>
-          <PlanetOrbit radius={planet.orbitRadius} />
+        <PlanetOrbit key={`orbit-${planet.id}`} radius={planet.orbitRadius} />
+      ))}
 
-          <OrbitingPlanet
-            planet={planet}
-            selectedPlanet={selectedPlanet}
-            onSelect={onSelect}
-          />
-        </group>
+      {/* Asteroid belt between Mars and Jupiter */}
+      {mars && jupiter && (
+        <AsteroidBelt
+          innerRadius={mars.orbitRadius * 1.12}
+          outerRadius={jupiter.orbitRadius * 0.88}
+        />
+      )}
+
+      {/* Orbiting planets */}
+      {planets.map((planet) => (
+        <OrbitingPlanet
+          key={planet.id}
+          planet={planet}
+          selectedPlanet={selectedPlanet}
+          onSelect={onSelect}
+        />
       ))}
     </group>
   );
