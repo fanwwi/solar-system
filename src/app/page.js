@@ -4,7 +4,6 @@ import { useCallback, useRef, useState } from "react";
 import HologramScene from "./components/HologramScene";
 import HandTracker from "./components/HandTracker";
 
-
 export default function Home() {
   const [selectedPlanet, setSelectedPlanet] = useState(null);
   const [cameraEnabled, setCameraEnabled] = useState(false);
@@ -74,7 +73,7 @@ export default function Home() {
         <div style={{ color: "#7fdcff", fontSize: 12 }}>● SYSTEM ONLINE</div>
       </header>
 
-      {/* 3D SCENE */}
+      {/* 3D SCENE + PLANET INFORMATION */}
       <div
         style={{
           position: "absolute",
@@ -87,54 +86,6 @@ export default function Home() {
           controlsRef={controlsRef}
         />
       </div>
-
-      {/* PLANET INFORMATION */}
-      {selectedPlanet && (
-        <aside
-          style={{
-            position: "absolute",
-            right: 25,
-            top: 100,
-            width: 260,
-            padding: 22,
-            border: "1px solid rgba(66,223,255,0.3)",
-            borderRadius: 14,
-            background: "rgba(5,15,28,0.92)",
-            backdropFilter: "blur(15px)",
-            zIndex: 4,
-          }}
-        >
-          <button
-            onClick={() => setSelectedPlanet(null)}
-            style={{
-              float: "right",
-              background: "transparent",
-              color: "white",
-              border: 0,
-              cursor: "pointer",
-              fontSize: 20,
-            }}
-          >
-            ×
-          </button>
-
-          <small style={{ color: "#42dfff" }}>PLANET DATABASE</small>
-
-          <h2 style={{ fontSize: 28 }}>{selectedPlanet.name}</h2>
-
-          <p style={{ color: "#91a9bd" }}>{selectedPlanet.subtitle}</p>
-
-          <hr style={{ borderColor: "#243b50" }} />
-
-          <p>Type: {selectedPlanet.type}</p>
-          <p>Diameter: {selectedPlanet.facts.diameter}</p>
-          <p>Distance: {selectedPlanet.facts.distanceFromSun}</p>
-          <p>Orbital period: {selectedPlanet.facts.orbitalPeriod}</p>
-          <p>Rotation: {selectedPlanet.facts.rotationPeriod}</p>
-          <p>Temperature: {selectedPlanet.facts.temperature}</p>
-          <p>Moons: {selectedPlanet.facts.moons}</p>
-        </aside>
-      )}
 
       {/* CAMERA CONTROL */}
       <div
