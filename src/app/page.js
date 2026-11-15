@@ -1,21 +1,18 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-
 import HologramScene from "./components/HologramScene";
 import HandTracker from "./components/HandTracker";
 
+
 export default function Home() {
+  const [selectedPlanet, setSelectedPlanet] = useState(null);
   const [cameraEnabled, setCameraEnabled] = useState(false);
   const [cameraStatus, setCameraStatus] = useState("CAMERA OFF");
 
-  const rotationRef = useRef({
-    x: 0,
-    y: 0,
-    scale: 1,
-  });
+  const controlsRef = useRef(null);
 
-  const handleCameraStatus = useCallback((status) => {
+  const handleStatus = useCallback((status) => {
     setCameraStatus(status);
   }, []);
 
@@ -23,170 +20,181 @@ export default function Home() {
     if (cameraEnabled) {
       setCameraEnabled(false);
       setCameraStatus("CAMERA OFF");
-
-      rotationRef.current = {
-        x: 0,
-        y: 0,
-        scale: 1,
-      };
     } else {
       setCameraEnabled(true);
       setCameraStatus("STARTING CAMERA");
     }
   };
 
-  const isTracking = cameraStatus === "HAND DETECTED";
-
   return (
-    <main className="app">
-      {/* HAND TRACKING */}
+    <main
+      style={{
+        width: "100%",
+        height: "100vh",
+        background: "#03060d",
+        color: "#fff",
+        overflow: "hidden",
+        position: "relative",
+        fontFamily: "Arial, sans-serif",
+      }}
+    >
       <HandTracker
         enabled={cameraEnabled}
-        rotationRef={rotationRef}
-        onStatus={handleCameraStatus}
+        controlsRef={controlsRef}
+        onStatus={handleStatus}
       />
 
       {/* HEADER */}
-      <header className="header">
-        <a className="logo" href="/">
-          HOLO<span>X</span>
-        </a>
+      <header
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 75,
+          padding: "0 30px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          borderBottom: "1px solid rgba(100,180,220,0.15)",
+          background: "rgba(3, 8, 18, 0.8)",
+          zIndex: 5,
+        }}
+      >
+        <div>
+          <h1 style={{ letterSpacing: 5, margin: 0 }}>
+            HOLO<span style={{ color: "#42dfff" }}>X</span>
+          </h1>
 
-        <div className="header-status">
-          <span className="status-dot" />
-          SYSTEM READY
+          <small style={{ color: "#8195aa", letterSpacing: 2 }}>
+            SOLAR SYSTEM EXPLORER
+          </small>
         </div>
 
-        <div className="header-version">VERSION 1.0.0</div>
+        <div style={{ color: "#7fdcff", fontSize: 12 }}>● SYSTEM ONLINE</div>
       </header>
 
-      <section className="workspace">
-        {/* SIDEBAR */}
-        <aside className="sidebar">
-          <div className="section-label">ENVIRONMENT</div>
+      {/* 3D SCENE */}
+      <div
+        style={{
+          position: "absolute",
+          inset: "75px 0 0",
+        }}
+      >
+        <HologramScene
+          selectedPlanet={selectedPlanet}
+          onSelect={setSelectedPlanet}
+          controlsRef={controlsRef}
+        />
+      </div>
 
-          <div className="control-group">
-            <span className="control-label">SCENE</span>
+      {/* PLANET INFORMATION */}
+      {selectedPlanet && (
+        <aside
+          style={{
+            position: "absolute",
+            right: 25,
+            top: 100,
+            width: 260,
+            padding: 22,
+            border: "1px solid rgba(66,223,255,0.3)",
+            borderRadius: 14,
+            background: "rgba(5,15,28,0.92)",
+            backdropFilter: "blur(15px)",
+            zIndex: 4,
+          }}
+        >
+          <button
+            onClick={() => setSelectedPlanet(null)}
+            style={{
+              float: "right",
+              background: "transparent",
+              color: "white",
+              border: 0,
+              cursor: "pointer",
+              fontSize: 20,
+            }}
+          >
+            ×
+          </button>
 
-            <div className="scene-card active">
-              <span className="scene-icon">▦</span>
+          <small style={{ color: "#42dfff" }}>PLANET DATABASE</small>
 
-              <div>
-                <strong>Minecraft World</strong>
-                <small>Grass Block</small>
-              </div>
+          <h2 style={{ fontSize: 28 }}>{selectedPlanet.name}</h2>
 
-              <span className="active-indicator" />
-            </div>
-          </div>
+          <p style={{ color: "#91a9bd" }}>{selectedPlanet.subtitle}</p>
 
-          <div className="control-group">
-            <span className="control-label">INTERACTION</span>
+          <hr style={{ borderColor: "#243b50" }} />
 
-            <div className="interaction-item">
-              <span>✋</span>
-              Hand Tracking
-              <span className="coming-soon">LIVE</span>
-            </div>
-
-            <div className="interaction-item">
-              <span>↻</span>
-              Mouse Rotation
-            </div>
-
-            <div className="interaction-item">
-              <span>⌖</span>
-              Gesture Control
-            </div>
-          </div>
-
-          {/* CAMERA STATUS */}
-          <div className="control-group">
-            <span className="control-label">TRACKING STATUS</span>
-
-            <div className="tracking-status">
-              <span
-                className={`status-dot ${isTracking ? "tracking-active" : ""}`}
-              />
-
-              <span>{cameraStatus}</span>
-            </div>
-          </div>
-
-          <div className="sidebar-bottom">
-            <div className="connection">
-              <span className="status-dot" />
-              LOCAL RENDERING
-            </div>
-
-            <small>HOLOX ENGINE © 2026</small>
-          </div>
+          <p>Type: {selectedPlanet.type}</p>
+          <p>Diameter: {selectedPlanet.facts.diameter}</p>
+          <p>Distance: {selectedPlanet.facts.distanceFromSun}</p>
+          <p>Orbital period: {selectedPlanet.facts.orbitalPeriod}</p>
+          <p>Rotation: {selectedPlanet.facts.rotationPeriod}</p>
+          <p>Temperature: {selectedPlanet.facts.temperature}</p>
+          <p>Moons: {selectedPlanet.facts.moons}</p>
         </aside>
+      )}
 
-        {/* MAIN CONTENT */}
-        <section className="main-content">
-          <div className="scene-heading">
-            <div>
-              <div className="eyebrow">3D INTERACTIVE ENVIRONMENT</div>
+      {/* CAMERA CONTROL */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: 25,
+          left: 25,
+          zIndex: 5,
+          padding: 16,
+          width: 260,
+          background: "rgba(5,15,28,0.9)",
+          border: "1px solid rgba(66,223,255,0.25)",
+          borderRadius: 12,
+        }}
+      >
+        <div style={{ fontSize: 11, color: "#8195aa" }}>HAND TRACKING</div>
 
-              <h1>
-                Minecraft <span>Grass Block</span>
-              </h1>
+        <div style={{ margin: "10px 0", fontSize: 13 }}>● {cameraStatus}</div>
 
-              <p>Control a voxel object using natural hand gestures.</p>
-            </div>
+        <button
+          onClick={toggleCamera}
+          style={{
+            width: "100%",
+            padding: 12,
+            borderRadius: 7,
+            border: "1px solid #42dfff",
+            background: cameraEnabled
+              ? "rgba(255,70,90,0.15)"
+              : "rgba(66,223,255,0.12)",
+            color: "white",
+            cursor: "pointer",
+            fontWeight: 600,
+          }}
+        >
+          {cameraEnabled ? "DISABLE CAMERA" : "ENABLE CAMERA"}
+        </button>
+      </div>
 
-            <div className="scene-badge">
-              <span className="status-dot" />
-              LIVE SCENE
-            </div>
-          </div>
-
-          {/* 3D VIEWPORT */}
-          <div className="viewport">
-            <HologramScene rotationRef={rotationRef} />
-
-            <div className="viewport-top">
-              <span>VIEWPORT / 001</span>
-              <span>3D SPACE</span>
-            </div>
-
-            <div className="viewport-bottom">
-              <span>X: {rotationRef.current.x.toFixed(2)}</span>
-
-              <span>Y: {rotationRef.current.y.toFixed(2)}</span>
-
-              <span>SCALE: {rotationRef.current.scale.toFixed(2)}x</span>
-            </div>
-          </div>
-
-          {/* BOTTOM PANEL */}
-          <div className="bottom-panel">
-            <div className="panel-info">
-              <span className="panel-icon">✦</span>
-
-              <div>
-                <strong>Hand interaction</strong>
-
-                <small>
-                  {cameraEnabled
-                    ? cameraStatus
-                    : "Enable camera to control the 3D object"}
-                </small>
-              </div>
-            </div>
-
-            <button
-              className={`camera-button ${cameraEnabled ? "enabled" : ""}`}
-              onClick={toggleCamera}
-            >
-              {cameraEnabled ? "DISABLE CAMERA" : "ENABLE CAMERA"}
-
-              <span>↗</span>
-            </button>
-          </div>
-        </section>
-      </section>
+      {/* CONTROLS HINT */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: 30,
+          right: 30,
+          zIndex: 3,
+          color: "#8297ad",
+          fontSize: 11,
+          textAlign: "right",
+          lineHeight: 1.8,
+          pointerEvents: "none",
+        }}
+      >
+        MOUSE — ROTATE
+        <br />
+        SCROLL — ZOOM
+        <br />
+        CLICK — SELECT PLANET
+        <br />
+        HANDS — GESTURE CONTROL
+      </div>
     </main>
   );
 }
